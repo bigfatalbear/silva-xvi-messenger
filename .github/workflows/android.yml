@@ -28,7 +28,7 @@ jobs:
           cp -r sounds www/sounds
           cp -r icons www/icons
 
-      - name: Instalar dependências e sincronizar
+      - name: Install deps + Capacitor Android
         run: |
           npm install
           npx cap add android
@@ -39,13 +39,66 @@ jobs:
           M=android/app/src/main/AndroidManifest.xml
           grep -q BLUETOOTH_SCAN $M || sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />\n    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />#' $M
 
-      - name: Build APK debug
+      - name: Restaurar ou criar keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.XVI_KEYSTORE_B64 }}
+          KEY_PASS: ${{ secrets.XVI_KEY_PASS }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > silva-xvi.jks
+            echo "keystore restaurado dos Secrets"
+          else
+            keytool -genkeypair -v -keystore silva-xvi.jks -storetype JKS \
+              -alias silva16 -keyalg RSA -keysize 2048 -validity 10950 \
+              -storepass SILVAXVI2026 -keypass SILVAXVI2026 \
+              -dname "CN=SILVA XVI, OU=Messenger, O=Silva, L=BR, S=BR, C=BR"
+            echo "KEYSTORE_B64=$(base64 -w0 silva-xvi.jks)" >> keystore-b64.txt
+            echo "🔑 Novo keystore gerado — salve como secret p/ builds futuros"
+            mkdir -p dist
+            cp silva-xvi.jks dist/
+            echo "KEYSTORE_UPLOAD=true" >> $GITHUB_ENV
+          fi
+          PASS=$(echo -n "${KEY_PASS:-SILVAXVI2026}")
+          echo "KEY_PASS=$PASS" >> $GITHUB_ENV
+
+      - name: Assinar release no gradle
+        env:
+          KEY_PASS: ${{ env.KEY_PASS }}
+        run: |
+          python3 - <<'PY'
+          import os
+          p = 'android/app/build.gradle'
+          src = open(p).read()
+          pass_ = os.environ.get('KEY_PASS', 'SILVAXVI2026')
+          block = ("signingConfigs {\n"
+                   "    release {\n"
+                   "        storeFile file('../../silva-xvi.jks')\n"
+                   "        storePassword '%s'\n"
+                   "        keyAlias 'silva16'\n"
+                   "        keyPassword '%s'\n"
+                   "    }\n"
+                   "}\n" % (pass_, pass_))
+          if 'signingConfigs {' not in src:
+              src = src.replace('buildTypes', block + 'buildTypes', 1)
+          src = src.replace('signingConfig signingConfigs.debug', 'signingConfig signingConfigs.release')
+          open(p, 'w').write(src)
+          print('gradle assinado para release')
+          PY
+
+      - name: APK release (assinado)
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
       - uses: actions/upload-artifact@v4
         with:
-          name: silva-xvi-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: silva-xvi-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Upload keystore (p/ salvar em Secrets)
+        if: env.KEYSTORE_UPLOAD == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: silva-xvi-keystore
+          path: dist/silva-xvi.jks
