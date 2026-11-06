@@ -44,53 +44,34 @@ const sfx = {
 
 /* ============ IndexedDB ============ */
 const DB = {
-  _p: null,
-  open() {
-    if (this._p) return this._p;
-    this._p = new Promise((res, rej) => {
-      const r = indexedDB.open('xvi-db', 1);
-      r.onupgradeneeded = () => r.result.createObjectStore('msgs', { keyPath: 'id' });
-      r.onsuccess = () => res(r.result);
-      r.onerror = () => rej(r.error);
-    });
-    return this._p;
-  },
+  _p: new Promise((res, rej) => {
+    const r = indexedDB.open('xvi-db', 1);
+    r.onupgradeneeded = () => {
+      const s = r.result.createObjectStore('msgs', { keyPath: 'id' });
+      s.createIndex('peer', 'peer', { unique: false });
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }),
   async put(peer, msg) {
-    const db = await this.open();
+    const db = await this._p;
     return new Promise(res => {
       const tx = db.transaction('msgs', 'readwrite');
       tx.objectStore('msgs').put({ id: `${peer}:${Date.now()}:${Math.random().toString(36).slice(2, 6)}`, peer, msg });
       tx.oncomplete = res;
+      tx.onerror = res;
     });
   },
   async byPeer(peer) {
-    const db = await this.open();
+    const db = await this._p;
     return new Promise(res => {
       const out = [];
-      const req = db.transaction('msgs', 'readonly').objectStore('msgs').openCursor();
-      req.onsuccess = () => {
-        const c = req.result;
-        if (!c) { res(out); return; }
-        if (c.value.peer === peer) out.push(c.value);
-        c.continue();
-      };
+      const req = db.transaction('msgs', 'readonly').objectStore('msgs').index('peer').getAll(peer);
+      req.onsuccess = () => res((req.result || []).map(r => r.msg).sort((a, b) => a.ts - b.ts));
       req.onerror = () => res(out);
     });
   },
 };
-DB.open().then(db => {
-  const store = db.transaction('msgs', 'readwrite').objectStore('msgs');
-  if (!store.indexNames.contains('peer')) {
-    db.close();
-    indexedDB.deleteDatabase('xvi-db');
-    const r2 = indexedDB.open('xvi-db', 2);
-    r2.onupgradeneeded = () => {
-      const s = r2.result.createObjectStore('msgs', { keyPath: 'id' });
-      s.createIndex('peer', 'peer', { unique: false });
-    };
-    r2.onsuccess = () => { DB._p = Promise.resolve(r2.result); };
-  }
-});
 
 /* ============ contatos / lista ============ */
 function contactEntry(id, name, avatar) {
@@ -152,6 +133,8 @@ async function renderChat() {
 }
 
 function bubbleHTML(msg) {
+  if (msg.side === 'sys')
+    return `<div class="bubble sys">${escapeHTML(msg.text)} · ${new Date(msg.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>`;
   const who = msg.side === 'me' ? STATE.me.name : (STATE.peer?.name || 'Contato');
   return `<div class="bubble ${msg.side === 'me' ? 'me' : 'them'}">
     <span class="who">${escapeHTML(who)} · ${new Date(msg.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -164,32 +147,47 @@ function onChannelOpen() {
   $('#netStatus').textContent = 'canal P2P ativo';
   toast('Canal P2P aberto! 🎉');
   sfx.ring();
-  const id = STATE.sdp.answer ? $('#chatName').textContent : 'Novo contato';
-  if (!STATE.peer) {
-    const key = `${id}|${Date.now()}`;
-    STATE.chats[key] = contactEntry(key, id, '🙂');
-    STATE.chats[key].st = 'online';
-    LS.set('xvi_chats', STATE.chats);
-    renderContacts();
-    selectContact(key);
+  const fromHello = pendingHello;
+  const name = fromHello || 'Novo contato';
+  let key = STATE.peer?.id || keyByName(name);
+  if (!key || !STATE.chats[key]) {
+    key = `${name}|${Date.now()}`;
+    STATE.chats[key] = contactEntry(key, name, '🙂');
   }
+  STATE.chats[key].st = 'online';
+  if (fromHello) STATE.chats[key].name = name;
+  STATE.sdp.answer = STATE.sdp.answer || '';
+  LS.set('xvi_chats', STATE.chats);
+  LS.set('xvi_sdp', STATE.sdp);
+  STATE.peer = { id: key, ...STATE.chats[key] };
+  $('#chatName').textContent = STATE.chats[key].name;
+  pendingHello = null;
+  renderContacts();
+  selectContact(key);
+  try { STATE.net.sendSdp(JSON.stringify({ type: 'hello', name: STATE.me.name, avatar: STATE.me.avatar })); } catch {}
 }
+let pendingHello = null;
 
 async function onChannelMessage(payload) {
   const data = safeParse(payload);
   if (data?.type === 'nudge') {
     nudgeReceived();
     sfx.nudge();
-    await DB.put($('#chatName').textContent || 'peer', { side: 'them', text: '📢 chamou sua atenção!', ts: Date.now() });
+    const id = STATE.peer?.id || 'peer';
+    await DB.put(id, { side: 'them', text: '📢 chamou sua atenção!', ts: Date.now() });
     appendBubble({ side: 'them', text: '📢 chamou sua atenção!', ts: Date.now() });
     return;
   }
   if (data?.type === 'hello') {
-    const key = `${data.name}|${Date.now()}`;
-    STATE.chats[key] = { ...contactEntry(key, data.name, data.avatar) , preview: '' };
-    LS.set('xvi_chats', STATE.chats);
-    renderContacts();
-    toast(data.name + ' conectou! 💙');
+    if (STATE.peer && STATE.peer.name.startsWith('Novo contato')) {
+      STATE.chats[STATE.peer.id].name = data.name || STATE.peer.name;
+      STATE.chats[STATE.peer.id].avatar = data.avatar || '🙂';
+      LS.set('xvi_chats', STATE.chats);
+      $('#chatName').textContent = data.name;
+      pendingHello = data.name;
+      renderContacts();
+    }
+    appendBubble({ side: 'sys', text: `${data.name || 'Contato'} conectou 💙`, ts: Date.now() });
     return;
   }
   const text = data?.text ?? String(payload);
@@ -221,6 +219,7 @@ function sendMessage() {
   try {
     STATE.net.sendSdp(JSON.stringify({ type: 'msg', from: STATE.me.name, text }));
     DB.put(STATE.peer.id, { side: 'me', text, ts: Date.now() });
+    STATE.chats[STATE.peer.id] = STATE.chats[STATE.peer.id] || {};
     STATE.chats[STATE.peer.id].preview = text.slice(0, 40);
     LS.set('xvi_chats', STATE.chats);
     appendBubble({ side: 'me', text, ts: Date.now() });
