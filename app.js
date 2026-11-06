@@ -97,7 +97,7 @@ function renderContacts(filter = '') {
     '<p class="empty-list">Ninguém ainda — conecte alguém!</p>';
   $('#grpOffline').innerHTML = off.length ? off.map(contactHTML).join('') :
     '<p class="empty-list">Sem contatos offline.</p>';
-  $('#defTitle').textContent = `▾ Disponíveis (${on.length})`;
+  $('#defTitle').textContent = `▾ Online (${on.length})`;
   $('#offTitle').textContent = `▸ Offline (${off.length})`;
   $$('.contact').forEach(c => c.onclick = () => selectContact(c.dataset.id));
 }
@@ -247,22 +247,8 @@ function nudgeReceived() {
 }
 
 /* ============ fluxo de conexão WebRTC manual ============ */
-function drawQR(canvas, text) {
-  const qr = window.qrcode(0, 'L');
-  qr.addData(text);
-  qr.make();
-  const cell = Math.max(2, Math.floor(210 / qr.getModuleCount()));
-  canvas.width = canvas.height = qr.getModuleCount() * cell;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#0a2a5e';
-  for (let r = 0; r < qr.getModuleCount(); r++) {
-    for (let c = 0; c < qr.getModuleCount(); c++) {
-      if (qr.isDark(r, c)) ctx.fillRect(c * cell, r * cell, cell, cell);
-    }
-  }
-}
+function drawQRLegacy() {} // reimplementado abaixo (createDataURL, img)
+const _unusedDraw = drawQRLegacy;
 
 $('#connBtn').onclick = () => {
   $('#connModal').classList.remove('hidden');
@@ -399,18 +385,135 @@ $('#nudgeBtn').onclick = markNudge;
 $('#chatLog').addEventListener('animationend', () => {});
 
 /* mobile: voltar */
-$('#chatName').closest('.win-title.chat').insertAdjacentHTML(
+$('#chatName').closest('.xp-title.chat').insertAdjacentHTML(
   'afterbegin', '<button class="back-btn" id="backBtn">← Voltar</button>');
 $('#backBtn').onclick = () => document.documentElement.classList.remove('chat-open');
 
-/* ============ boot ============ */
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
-$('#myName').value = STATE.me.name;
-$('#statusLabel').textContent = STATUS_CFG[STATE.me.st].label;
-renderContacts();
-setInterval(() => {
-  const ready = STATE.net?.wifi.channel?.readyState === 'open';
-  $('#netStatus').textContent = ready ? 'canal P2P ativo' : 'sem canal';
-}, 2000);
+/* ============ boot e portão de acesso (estilo WLM) ============ */
+function drawQR(img, text) {
+  const qr = window.qrcode(0, 'L');
+  qr.addData(text);
+  qr.make();
+  img.style.width = '210px';
+  img.style.height = '210px';
+  img.src = qr.createDataURL(4, 0);
+  img.alt = 'QRcode';
+}
 
-window.addEventListener('exportBLEDebug', e => toast('BLE: ' + (e.detail || 'ok')));
+function loginOk(email = '') {
+  localStorage.setItem('xvi_auth', JSON.stringify({ email, ts: Date.now() }));
+  $('#gate').classList.add('hidden');
+  $('#session').classList.remove('hidden');
+  $('#myName').value = STATE.me.name;
+  STATE.me.st = $('#gateAs')?.value || 'online';
+  $('#statusLabel').textContent = STATUS_CFG[STATE.me.st.toLowerCase()]?.label || 'Online';
+  $('#psmPreview').textContent = '("' + LS.get('xvi_psm', 'lerolero da Silva XVI') + '")';
+  updatePsm();
+  renderContacts();
+}
+
+function updatePsm() {
+  const psm = LS.get('xvi_psm', '');
+  const p = $('#psmPreview');
+  if (p) p.textContent = psm ? `("${psm}")` : '';
+  $('#myName') && LS.set('xvi_me', { ...STATE.me, name: STATE.me.name });
+}
+
+$('#gateBtn').onclick = async () => {
+  const email = $('#gateEmail').value.trim().toLowerCase().replace(/\s+/g, '');
+  const pass = $('#gatePass').value;
+  if (!email) return gateMsg('Digite o endereço de email.');
+  const cfg = window.__gsCfg;
+  if (!cfg) return gateMsg('Não carregou lista. Recarregue.');
+  // se a "senha" for a master, abre painel admin pós-login
+  const masterOk = pass && (await (async () => {
+    const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass)))]
+      .map(x => x.toString(16).padStart(2, '0')).join('');
+    return h === cfg.adminPassHash;
+  })());
+  const hEmail = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email)))]
+    .map(x => x.toString(16).padStart(2, '0')).join('');
+  if (cfg.authorized.includes(hEmail) || localStorage.getItem('xvi_auth_em_' + hEmail) === '1') {
+    loginOk(email);
+    if (masterOk) openAdmin();
+    return;
+  }
+  if (masterOk) {
+    localStorage.setItem('xvi_auth_em_' + hEmail, '1');
+    loginOk(email);
+    openAdmin();
+    return;
+  }
+  gateMsg('E-mail não autorizado. Entre como admin para liberar.');
+};
+
+function gateMsg(m) { $('#gateMsg').textContent = m; }
+
+let localAuth = [];
+function openAdmin() {
+  localAuth = [...new Set([...(window.__gsCfg?.authorized ?? [])])].filter(Boolean);
+  $('#adminEmail') && ($('#adminModal').classList.remove('hidden'), fillAdmin());
+}
+function fillAdmin() {
+  const box = $('#adminList');
+  if (!box) return;
+  box.innerHTML = localAuth.length
+    ? localAuth.map(h => `<div class="item"><span style="font-size:11px">${h.slice(0, 14)}…</span>
+      <button class="wlm-btn" data-rm="${h}" style="padding:3px 8px">✕</button></div>`).join('')
+    : '<p class="hint">Nenhum e-mail autorizado.</p>';
+  box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
+    localAuth = localAuth.filter(x => x !== b.dataset.rm);
+    fillAdmin();
+  });
+}
+$('#adminExport')?.addEventListener('click', () => {
+  if (!$('#adminExport')) return;
+  const blob = new Blob([JSON.stringify({
+    _comment: 'Lista de e-mails autorizados (SHA-256)',
+    adminPassHash: window.__gsCfg?.adminPassHash,
+    authorized: localAuth,
+  }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'authorized.json';
+  a.click();
+  toast('Faça commit do authorized.json para publicar');
+});
+$('#adminAdd')?.addEventListener('click', async () => {
+  const email = $('#adminEmail').value.trim().toLowerCase();
+  if (!email) return;
+  const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email)))]
+    .map(x => x.toString(16).padStart(2, '0')).join('');
+  if (!localAuth.includes(h)) localAuth.push(h);
+  $('#adminEmail').value = '';
+  fillAdmin();
+  toast('Autorizado! Exporte o authorized.json ✔');
+});
+$('#gateAdmin')?.addEventListener('click', () => openAdmin());
+
+/* ===== busca na lista ===== */
+$('#searchBox').addEventListener('input', e => renderContacts(e.target.value));
+$('#addContactBtn')?.addEventListener('click', () => $('#connModal').classList.remove('hidden'));
+$('#logout')?.addEventListener('click', () => {
+  $('#session').classList.add('hidden');
+  $('#gate').classList.remove('hidden');
+});
+
+/* ===== relógio XP ===== */
+function xpClock() {
+  const d = new Date();
+  $('#xpClock') && ($('#xpClock').textContent =
+    d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+}
+setInterval(xpClock, 15000); xpClock();
+
+/* ============ boot ============ */
+(async () => {
+  try { window.__gsCfg = await (await fetch('authorized.json', { cache: 'no-store' })).json(); } catch {}
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  $('#myName').value = STATE.me.name;
+  $('#statusLabel').textContent = STATUS_CFG[STATE.me.st]?.label || 'Online';
+  renderContacts();
+  const ready = () => { $('#netStatus').textContent = STATE.net?.wifi.channel?.readyState === 'open' ? 'canal P2P ativo' : 'sem canal'; };
+  setInterval(ready, 2000);
+})();

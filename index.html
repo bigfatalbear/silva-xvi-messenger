@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#1e5aa8">
+<meta name="theme-color" content="#245edb">
 <title>SILVA XVI messenger</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
@@ -12,32 +12,60 @@
 </head>
 <body>
 
+<!-- ===== DESKTOP XP ===== -->
 <div class="desktop">
-  <header class="topbar">
-    <div class="brand">
-      <span class="mascot">🔥</span>
-      <b>SILVA XVI</b> <small>messenger</small>
-    </div>
-    <div class="netpick">
-      <select id="netMode" title="Transporte de rede">
-        <option value="wifi" selected>📶 Wi-Fi Local (WebRTC)</option>
-        <option value="ble">🔵 Bluetooth LE (Capacitor)</option>
-      </select>
-      <button id="connBtn" class="btn-win">🔗 Conectar</button>
-    </div>
-  </header>
-
-  <main class="session">
-    <!-- JANELA 1: LISTA DE CONTATOS -->
-    <section class="win contacts-win">
-      <div class="win-title">
-        <span>Contatos</span>
-        <span class="win-btns">::_</span>
+  <!-- JANELA DE LOGIN (portão) — fiel ao WLM 2008 -->
+  <div class="wlm-login" id="gate">
+    <div class="login-win">
+      <div class="xp-title">
+        <span class="xp-title-text">Windows Live Messenger</span>
+        <span class="xp-btns"><i>—</i><i>▢</i><i class="x">✕</i></span>
       </div>
+      <div class="login-body">
+        <div class="avatar-frame"><div class="avatar-big">🍥</div></div>
+        <span class="link">Ajuda ▾</span>
+
+        <label class="lab">Endereço de email:</label>
+        <input id="gateEmail" type="email" class="xp-input" autocomplete="email" spellcheck="false">
+        <label class="lab">Senha:</label>
+        <input id="gatePass" type="password" class="xp-input" placeholder="">
+        <label class="lab inline">Entrar como:</label>
+        <select id="gateAs" class="xp-input sel">
+          <option value="online">Online</option>
+          <option value="ocupado">Ocupado</option>
+          <option value="volto">Volto logo</option>
+          <option value="offline">Aparecer offline</option>
+        </select>
+
+        <label class="chk"><input type="checkbox" id="chkRemember" checked> Lembrar-me na Internet</label>
+        <label class="chk"><input type="checkbox" id="chkPass"> Lembrar minha senha</label>
+
+        <button id="gateBtn" class="btn-entrar">Entrar</button>
+        <p id="gateMsg" class="login-msg"></p>
+
+        <div class="login-links">
+          <span class="link" id="gateAdmin">Acesso do admin →</span>
+          <span class="link">Esqueceu sua senha?</span>
+          <span class="link">Inscreva-se para um Windows Live ID</span>
+        </div>
+      </div>
+      <div class="login-foot"><b>Windows Live Messenger</b> · SILVA XVI edition</div>
+    </div>
+  </div>
+
+  <!-- JANELAS FIXAS PÓS-LOGIN -->
+  <main class="session hidden" id="session">
+    <!-- CONTATOS -->
+    <section class="win contacts-win">
+      <div class="xp-title contacts">
+        <span class="xp-title-text">Windows Live Messenger</span>
+        <span class="xp-btns"><i>—</i><i>▢</i><i class="x">✕</i></span>
+      </div>
+
       <div class="me-banner">
         <div class="avatar big" id="myAvatar">🙂</div>
         <div class="me-info">
-          <input id="myName" maxlength="20" spellcheck="false" placeholder="Seu nome" title="Clique para renomear">
+          <input id="myName" maxlength="20" spellcheck="false" placeholder="Seu nome">
           <div class="status-line" id="statusOpen">
             <span class="dot online"></span>
             <span id="statusLabel">Online</span> <small>▾</small>
@@ -48,86 +76,113 @@
             <button data-st="volto"><span class="dot volto"></span> Volto logo</button>
             <button data-st="offline"><span class="dot offline"></span> Aparecer offline</button>
           </div>
+          <div class="psm-row">
+            <span class="psm-pref">✏️ "(Mensagem pessoal)"</span>
+            <span class="psm-text" id="psmPreview"></span>
+          </div>
         </div>
       </div>
+
+      <div class="toolbar">
+        <span class="tb-ico">➕</span><span class="tb-ico">🎨</span><span class="tb-ico">🎮</span>
+        <span class="tb-ico">📝</span><span class="tb-ico">📁</span><span class="tb-ico">✉️</span>
+        <span class="tb-ico">🎵</span><span class="tb-ico">🖼️</span>
+      </div>
+
+      <div class="search-row">
+        <input id="searchBox" placeholder="Localizar um contato..." spellcheck="false">
+        <button id="addContactBtn" class="mini-btn" title="Adicionar contato (conectar)">➕</button>
+      </div>
+
       <div class="groups">
-        <label id="defTitle" class="group-title open">▾ Disponíveis (0)</label>
+        <label id="defTitle" class="group-title open">▾ Online (0)</label>
         <div class="cl-group open" id="grpAvailable"></div>
         <label id="offTitle" class="group-title">▸ Offline (0)</label>
         <div class="cl-group hidden" id="grpOffline"></div>
       </div>
-      <footer class="win-foot">
-        <small>0 conectados · <span id="netStatus">sem canal</span></small>
-      </footer>
+
+      <div class="find-web">
+        <input placeholder="🔍 Buscar na Internet..." disabled>
+      </div>
+      <footer class="win-foot"><span id="netStatus">sem canal</span> · <span id="connCount">0 conectados</span></footer>
     </section>
 
-    <!-- JANELA 2: CONVERSA -->
+    <!-- CONVERSA -->
     <section class="win chat-win" id="chatWin">
-      <div class="win-title chat">
-        <div>
-          <span id="chatName">Ninguém selecionado</span>
-          <small id="chatSub">— escolha como conectar acima</small>
-        </div>
-        <div class="win-btns">
-          <button id="nudgeBtn" title="Chamar atenção!">📢</button>
-          <span>::_</span>
-        </div>
+      <div class="xp-title chat">
+        <span class="xp-title-text" id="chatName">Ninguém selecionado</span>
+        <span class="xp-btns">
+          <button id="nudgeBtn" class="nudge-btn" title="Chamar atenção!">📢</button>
+          <i>—</i><i>▢</i><i class="x">✕</i>
+        </span>
       </div>
-      <div class="chat-log" id="chatLog">
-        <div class="chat-empty">
-          <img src="icons/icon-192.png" alt="">
-          <p>Escolha um contacto para conversar<br><small>modo: Wi-Fi local ou Bluetooth</small></p>
-        </div>
+      <div class="chat-toolbar">
+        <span id="chatSub" class="chat-sub">— escolha como conectar acima</span>
+        <button id="connBtn" class="wlm-btn">🔗 Conectar</button>
+        <select id="netMode" class="wlm-btn sel">
+          <option value="wifi" selected>📶 Wi-Fi Local</option>
+          <option value="ble">🔵 Bluetooth LE</option>
+        </select>
+        <button id="logout" class="wlm-btn">⎋ Sair</button>
+      </div>
+      <div class="chat-log" id="chatLog"></div>
+      <div class="toolstrip">
+        <span>😀</span><span>😎</span><span>😭</span><span>😡</span><span>🐸</span><span>💀</span>
+        <span>🎺</span><span>❤️</span><span>☕</span><span>🏀</span>
       </div>
       <footer class="composer">
         <input id="msgInput" placeholder="Digite uma mensagem…" disabled>
-        <button id="sendBtn" class="btn-win gold" disabled>Enviar</button>
+        <button id="sendBtn" class="wlm-btn enviar" disabled>Enviar</button>
       </footer>
     </section>
   </main>
+
+  <!-- BARRA XP -->
+  <footer class="xp-bar">
+    <span class="start">🪟 Iniciar</span>
+    <span class="clock" id="xpClock"></span>
+  </footer>
 </div>
 
-<!-- MODAL: CONEXÃO (oferta/resposta + QR) -->
+<!-- MODAL: CONEXÃO -->
 <div id="connModal" class="modal hidden">
-  <div class="modal-box retro">
-    <div class="win-title"><span>Conexão ponto a ponto</span><button id="connClose" class="win-x">✕</button></div>
+  <div class="retro-win" style="max-width:440px">
+    <div class="xp-title modal-t"><span class="xp-title-text">Conexão ponto a ponto</span><button id="connClose" class="win-x">✕</button></div>
     <div class="modal-body">
       <div id="wifiFlow">
         <div class="role-pick">
-          <button id="roleA" class="btn-win">🎁 Criar conexão (sou A)</button>
-          <button id="roleB" class="btn-win">🔗 Conectar (sou B)</button>
+          <button id="roleA" class="wlm-btn">🎁 Criar conexão (sou A)</button>
+          <button id="roleB" class="wlm-btn">🔗 Conectar (sou B)</button>
         </div>
-
         <div id="flowA" class="flow hidden">
           <p class="hint">1. Mostre este cartão para o contato escanear:</p>
-          <div class="qr-wrap"><canvas id="qrOffer"></canvas></div>
+          <img id="qrOffer" class="qr" alt="QR da oferta">
           <textarea id="offerText" rows="3" readonly spellcheck="false"></textarea>
-          <p class="hint">2. Agora escaneie o *cartão de resposta* dele:</p>
-          <button id="scanAnswer" class="btn-win gold">📷 Escanear resposta</button>
-          <label class="hint alt">ou cole a resposta (Base64):</label>
-          <textarea id="answerPaste" rows="3" spellcheck="false" placeholder="cole aqui o SDP Answer Base64 e clique Conectar"></textarea>
-          <button id="applyAnswer" class="btn-win gold">✅ Conectar</button>
+          <p class="hint">2. Agora escaneie o cartão de resposta dele:</p>
+          <button id="scanAnswer" class="wlm-btn gold">📷 Escanear resposta</button>
+          <label class="hint">…ou cole a resposta (Base64):</label>
+          <textarea id="answerPaste" rows="3" spellcheck="false" placeholder="cole o SDP Answer Base64"></textarea>
+          <button id="applyAnswer" class="wlm-btn gold">✅ Conectar</button>
         </div>
-
         <div id="flowB" class="flow hidden">
           <p class="hint">1. Escaneie o cartão de oferta de quem criou:</p>
-          <button id="scanOffer" class="btn-win gold">📷 Escanear oferta</button>
-          <label class="hint alt">ou cole a oferta (Base64):</label>
-          <textarea id="offerPaste" rows="3" spellcheck="false" placeholder="cole aqui o SDP Offer Base64"></textarea>
-          <button id="acceptOffer" class="btn-win">⬇️ Aceitar</button>
+          <button id="scanOffer" class="wlm-btn gold">📷 Escanear oferta</button>
+          <label class="hint">…ou cole a oferta (Base64):</label>
+          <textarea id="offerPaste" rows="3" spellcheck="false" placeholder="cole o SDP Offer Base64"></textarea>
+          <button id="acceptOffer" class="wlm-btn">⬇️ Aceitar</button>
           <div id="answerZone" class="hidden">
             <p class="hint">2. Mostre este cartão de resposta ao criador:</p>
-            <div class="qr-wrap"><canvas id="qrAnswer"></canvas></div>
+            <img id="qrAnswer" class="qr" alt="QR da resposta">
             <textarea id="answerText" rows="3" readonly spellcheck="false"></textarea>
           </div>
         </div>
       </div>
       <div id="bleFlow" class="hidden">
         <div class="role-pick">
-          <button id="blePeripheral" class="btn-win">📡 Anunciar (peripheral)</button>
-          <button id="bleCentral" class="btn-win">🔎 Procurar (central)</button>
+          <button id="blePeripheral" class="wlm-btn">📡 Anunciar (peripheral)</button>
+          <button id="bleCentral" class="wlm-btn">🔎 Procurar (central)</button>
         </div>
-        <p id="bleState" class="hint">No Android, o modo BLE exige app híbrido (Capacitor) com o plugin bluetooth-le instalado. No navegador puro, use Wi-Fi local.</p>
+        <p id="bleState" class="hint">Bluetooth exige o APK híbrido (Capacitor). No navegador, use Wi-Fi local.</p>
       </div>
     </div>
   </div>
@@ -135,8 +190,8 @@
 
 <!-- MODAL: SCANNER -->
 <div id="scanModal" class="modal hidden">
-  <div class="modal-box retro scan">
-    <div class="win-title"><span>📷 Escanear</span><button id="scanClose" class="win-x">✕</button></div>
+  <div class="retro-win scan">
+    <div class="xp-title modal-t"><span class="xp-title-text">📷 Escanear</span><button id="scanClose" class="win-x">✕</button></div>
     <div class="modal-body">
       <video id="scanVideo" playsinline muted></video>
       <p class="hint">Aponte a câmera para o QR Code do contato.</p>

@@ -1,4 +1,4 @@
-const CACHE = 'silva-xvi-v2';
+const CACHE = 'silva-xvi-v3';
 const ASSETS = [
   './', './index.html', './style.css', './app.js', './network.js',
   './manifest.json',
