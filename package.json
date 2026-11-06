@@ -6,8 +6,7 @@
   "scripts": {
     "cap:add": "cap add android",
     "cap:sync": "cap sync android",
-    "cap:open": "cap open android",
-    "app": "gh run list -w build-android.yml --limit 1"
+    "cap:open": "cap open android"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^6.0.1",
@@ -15,6 +14,7 @@
     "@capacitor/core": "^6.1.1"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.1.1"
+    "@capacitor/cli": "^6.1.1",
+    "typescript": "^5.5.4"
   }
 }
