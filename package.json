@@ -1,0 +1,20 @@
+{
+  "name": "silva-xvi-messenger",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MSN Messenger nostálgico P2P offline — PWA + Capacitor Android",
+  "scripts": {
+    "cap:add": "cap add android",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android",
+    "app": "gh run list -w build-android.yml --limit 1"
+  },
+  "dependencies": {
+    "@capacitor-community/bluetooth-le": "^6.0.1",
+    "@capacitor/android": "^6.1.1",
+    "@capacitor/core": "^6.1.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.1"
+  }
+}

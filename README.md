@@ -19,15 +19,13 @@ Janelas flutuantes estilo Windows Live Messenger, menu de status clássico (Onli
 1. Abra a URL do GitHub Pages no Chrome
 2. Menu → *Adicionar à tela inicial* / *Instalar app*
 
-## 🦊 App híbrido (BLE)
-Para ativar o transporte via Bluetooth:
+## 🦊 APK Android (GitHub Actions)
+O repo tem workflow `build-android.yml`: a cada push ele instala Capacitor, adiciona Android, injeta permissões BLE e publica o **APK debug** em *Actions → build-android → artifact:* `silva-xvi-debug-apk`.
+
+Para desenvolver local (com JDK):
 ```bash
-npm i -D @capacitor/cli @capacitor/core
-npx cap init "SILVA XVI" -i com.silva16.messenger
-npm i @capacitor-community/bluetooth-le
-npx cap add android && npx cap sync android
+npm install && npx cap add android && npx cap sync android && npx cap open android
 ```
-(o modo Wi-Fi funciona até no navegador puro)
 
 ## Stack
 Vanilla ES6+ modular · RTCPeerConnection manual · GATT bimodal · jsQR vendado · qrcode-generator vendado · WebAudio clássico · CSS custom properties
