@@ -79,10 +79,11 @@ function contactEntry(id, name, avatar) {
 }
 function knownPeers() {
   const chats = STATE.chats;
-  const entry = k => chats[k] || contactEntry(k, k.split('|')[0] || 'Contato', '🙂');
+  const srvPeers = STATE.net.server?.st && STATE.net.server.st.state === 'online' ? STATE.net.server.peers : [];
   return Object.keys(chats).map(k => {
     const e = contactEntry(k, chats[k]?.name || k.split('|')[0], chats[k]?.avatar || '🙂');
-    e.st = STATE.sdp.answer && k === activePeerLabel() ? 'online' : 'offline';
+    if (srvPeers.some(p => p.name === e.name)) e.st = 'online';
+    else e.st = chats[k]?.st === 'online' ? 'online' : 'offline';
     e.preview = chats[k]?.preview || '';
     return e;
   });
@@ -204,6 +205,14 @@ async function onChannelMessage(payload) {
 }
 const keyByName = n => Object.keys(STATE.chats).find(k => STATE.chats[k]?.name === n) || n;
 
+function transportSend(text) {
+  const srv = STATE.net.server?.st;
+  if (srv && srv.state === 'online') return srv.send(text);
+  return STATE.net.sendSdp(text);
+}
+const _S = { sendSdp: transportSend };
+STATE.net.sendSdp = transportSend;
+
 function safeParse(s) { try { return JSON.parse(s); } catch { return null; } }
 
 function appendBubble(m) {
@@ -260,9 +269,69 @@ $('#scanClose').onclick = () => stopScanner();
 $('#netMode').onchange = () => {
   const wifi = $('#netMode').value === 'wifi';
   $('#wifiFlow').classList.toggle('hidden', !wifi);
-  $('#bleFlow').classList.toggle('hidden', wifi);
-  STATE.net.setMode(wifi ? NET_MODES.WIFI : NET_MODES.BLE);
+  $('#bleFlow').classList.toggle('hidden', $('#netMode').value !== 'ble');
+  $('#serverFlow').classList.toggle('hidden', $('#netMode').value !== 'server');
+  STATE.net.setMode($('#netMode').value);
 };
+
+/* ============ MODO SERVIDOR ============ */
+STATE.net.server = { st: null, peers: [] };
+$('#srvUrl').value = LS.get('xvi_srv_url', '');
+$('#srvRoom').value = LS.get('xvi_srv_room', 'salavip');
+
+$('#srvJoin').onclick = async () => {
+  const url = $('#srvUrl').value.trim().replace(/\s/g, '');
+  const room = $('#srvRoom').value.trim() || 'salavip';
+  if (!url) return toast('Informe a URL do servidor');
+  LS.set('xvi_srv_url', url); LS.set('xvi_srv_room', room);
+  $('#srvState').textContent = '⏳ conectando…';
+  const { ServerTransport } = await import('./network.js');
+  STATE.net.server.st = new ServerTransport({
+    onServerMessage: txt => onServerMessage(txt),
+    onClose: () => {
+      $('#srvState').textContent = 'saiu da sala';
+      $('#srvLeave').classList.add('hidden');
+      $('#srvJoin').classList.remove('hidden');
+      renderContacts();
+    },
+  });
+  try {
+    await STATE.net.server.st.connect(url, room, STATE.me.name);
+    $('#srvLeave').classList.remove('hidden');
+    $('#srvState').textContent = `✅ na sala "${room}" — aguardando presença…`;
+  } catch (e) {
+    $('#srvState').textContent = '⚠ ' + e.message;
+  }
+};
+
+$('#srvLeave')?.addEventListener('click', () => {
+  STATE.net.server.st?.close();
+  STATE.net.server.st = null;
+  $('#srvLeave').classList.add('hidden');
+  $('#srvJoin').classList.remove('hidden');
+});
+
+function onServerMessage(txt) {
+  const d = safeParse(txt);
+  if (!d) return;
+  if (d.type === 'welcome') {
+    STATE.net.server.st.markOnline();
+    $('#srvState').textContent = `✅ online na sala "${d.room}"`;
+    toast('Conectado ao servidor! 🌐');
+    return;
+  }
+  if (d.type === 'presence') {
+    STATE.net.server.peers = d.peers || [];
+    renderContacts();
+    $('#srvState').textContent = `✅ sala com ${STATE.net.server.peers.length} pessoa(s)`;
+    return;
+  }
+  if (d.type === 'sys') {
+    appendBubble({ side: 'sys', text: (d.text || '') + ' 💙', ts: d.ts || Date.now() });
+    return;
+  }
+  onChannelMessage(JSON.stringify({ ...d, via: 'server' }));
+}
 
 $('#roleA').onclick = async () => {
   $('#flowA').classList.remove('hidden');

@@ -122,6 +122,7 @@
         <select id="netMode" class="wlm-btn sel">
           <option value="wifi" selected>📶 Wi-Fi Local</option>
           <option value="ble">🔵 Bluetooth LE</option>
+          <option value="server">🌐 Servidor</option>
         </select>
         <button id="logout" class="wlm-btn">⎋ Sair</button>
       </div>
@@ -176,6 +177,16 @@
             <textarea id="answerText" rows="3" readonly spellcheck="false"></textarea>
           </div>
         </div>
+      </div>
+      <div id="serverFlow" class="flow hidden">
+        <p class="hint">Entre numa sala do servidor de sinalização (Termux local ou nuvem). Todos na sala aparecem na lista e conversam recebendo relay com pensamento criptografado:</p>
+        <label class="hint">URL do servidor:</label>
+        <input id="srvUrl" class="xp-input" placeholder="ws://192.168.0.10:8080 ou wss://meu-app.onrender.com" spellcheck="false">
+        <label class="hint">Sala:</label>
+        <input id="srvRoom" class="xp-input" placeholder="salavip" spellcheck="false">
+        <button id="srvJoin" class="wlm-btn gold">🌐 Entrar na sala</button>
+        <button id="srvLeave" class="wlm-btn hidden">✕ Sair da sala</button>
+        <p id="srvState" class="hint"></p>
       </div>
       <div id="bleFlow" class="hidden">
         <div class="role-pick">

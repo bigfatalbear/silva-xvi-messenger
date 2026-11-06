@@ -190,6 +190,59 @@ export function handleCharacteristicChanged({ value }) {
   _inboundTextHandler?.(text);
 }
 
+/* ==== Servidor de sinalização (WebSocket relay) ==== */
+export class ServerTransport {
+  constructor(handlers) {
+    this.h = handlers || {};
+    this.ws = null;
+    this.room = null;
+    this.name = null;
+    this.state = 'idle';
+  }
+
+  connect(url, room, name) {
+    return new Promise((resolve, reject) => {
+      this.room = room || 'salavip';
+      this.name = name || 'Anon';
+      this.state = 'connecting';
+      const proto = url.startsWith('wss://') || url.startsWith('ws://')
+        ? url
+        : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${url.replace(/^https?:\/\//, '')}`;
+      try { this.ws = new WebSocket(proto); } catch (e) { this.state = 'erro'; return reject(new NetworkError('URL inválida')); }
+      this.h.onStatus?.('conectando…');
+      this.ws.onopen = () => this.ws.send(JSON.stringify({ type: 'join', room: this.room, name: this.name }));
+      this.ws.onmessage = e => this.h.onServerMessage?.(e.data);
+      this.ws.onclose = () => {
+        if (this.state === 'connecting') { this.state = 'erro'; reject(new NetworkError('não conectou: server offline ou URL errada')); return; }
+        this.state = 'idle';
+        this.h.onClose?.('server');
+      };
+      this.ws.onerror = () => {};
+      const installed = setInterval(() => {
+        if (this.state === 'online') { clearInterval(installed); resolve(this.room); }
+        if (this.state === 'erro') { clearInterval(installed); }
+      }, 200);
+      setTimeout(() => { if (this.state !== 'online') { clearInterval(installed); this.state = 'erro'; reject(new NetworkError('timeout no servidor')); } }, 10000);
+    });
+  }
+
+  markOnline() {
+    this.state = 'online';
+    this.h.onOpen?.();
+  }
+
+  send(text) {
+    if (this.state !== 'online') throw new NetworkError('fora da sala');
+    this.ws.send(text);
+  }
+
+  close() {
+    try { this.ws?.close(); } catch {}
+    this.ws = null;
+    this.state = 'idle';
+  }
+}
+
 export class NetworkManager {
   constructor(handlers) {
     this.h = handlers;
