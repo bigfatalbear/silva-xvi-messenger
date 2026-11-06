@@ -1,0 +1,16 @@
+{
+  "name": "SILVA XVI messenger",
+  "short_name": "SILVA XVI",
+  "description": "Messenger nostálgico P2P 100% offline — WebRTC manual e Bluetooth",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a2a5e",
+  "theme_color": "#1e5aa8",
+  "orientation": "any",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

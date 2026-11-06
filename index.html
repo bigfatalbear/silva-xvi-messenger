@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1e5aa8">
+<title>SILVA XVI messenger</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="desktop">
+  <header class="topbar">
+    <div class="brand">
+      <span class="mascot">🔥</span>
+      <b>SILVA XVI</b> <small>messenger</small>
+    </div>
+    <div class="netpick">
+      <select id="netMode" title="Transporte de rede">
+        <option value="wifi" selected>📶 Wi-Fi Local (WebRTC)</option>
+        <option value="ble">🔵 Bluetooth LE (Capacitor)</option>
+      </select>
+      <button id="connBtn" class="btn-win">🔗 Conectar</button>
+    </div>
+  </header>
+
+  <main class="session">
+    <!-- JANELA 1: LISTA DE CONTATOS -->
+    <section class="win contacts-win">
+      <div class="win-title">
+        <span>Contatos</span>
+        <span class="win-btns">::_</span>
+      </div>
+      <div class="me-banner">
+        <div class="avatar big" id="myAvatar">🙂</div>
+        <div class="me-info">
+          <input id="myName" maxlength="20" spellcheck="false" placeholder="Seu nome" title="Clique para renomear">
+          <div class="status-line" id="statusOpen">
+            <span class="dot online"></span>
+            <span id="statusLabel">Online</span> <small>▾</small>
+          </div>
+          <div class="status-menu hidden" id="statusMenu">
+            <button data-st="online"><span class="dot online"></span> Online</button>
+            <button data-st="ocupado"><span class="dot ocupado"></span> Ocupado</button>
+            <button data-st="volto"><span class="dot volto"></span> Volto logo</button>
+            <button data-st="offline"><span class="dot offline"></span> Aparecer offline</button>
+          </div>
+        </div>
+      </div>
+      <div class="groups">
+        <label id="defTitle" class="group-title open">▾ Disponíveis (0)</label>
+        <div class="cl-group open" id="grpAvailable"></div>
+        <label id="offTitle" class="group-title">▸ Offline (0)</label>
+        <div class="cl-group hidden" id="grpOffline"></div>
+      </div>
+      <footer class="win-foot">
+        <small>0 conectados · <span id="netStatus">sem canal</span></small>
+      </footer>
+    </section>
+
+    <!-- JANELA 2: CONVERSA -->
+    <section class="win chat-win" id="chatWin">
+      <div class="win-title chat">
+        <div>
+          <span id="chatName">Ninguém selecionado</span>
+          <small id="chatSub">— escolha como conectar acima</small>
+        </div>
+        <div class="win-btns">
+          <button id="nudgeBtn" title="Chamar atenção!">📢</button>
+          <span>::_</span>
+        </div>
+      </div>
+      <div class="chat-log" id="chatLog">
+        <div class="chat-empty">
+          <img src="icons/icon-192.png" alt="">
+          <p>Escolha um contacto para conversar<br><small>modo: Wi-Fi local ou Bluetooth</small></p>
+        </div>
+      </div>
+      <footer class="composer">
+        <input id="msgInput" placeholder="Digite uma mensagem…" disabled>
+        <button id="sendBtn" class="btn-win gold" disabled>Enviar</button>
+      </footer>
+    </section>
+  </main>
+</div>
+
+<!-- MODAL: CONEXÃO (oferta/resposta + QR) -->
+<div id="connModal" class="modal hidden">
+  <div class="modal-box retro">
+    <div class="win-title"><span>Conexão ponto a ponto</span><button id="connClose" class="win-x">✕</button></div>
+    <div class="modal-body">
+      <div id="wifiFlow">
+        <div class="role-pick">
+          <button id="roleA" class="btn-win">🎁 Criar conexão (sou A)</button>
+          <button id="roleB" class="btn-win">🔗 Conectar (sou B)</button>
+        </div>
+
+        <div id="flowA" class="flow hidden">
+          <p class="hint">1. Mostre este cartão para o contato escanear:</p>
+          <div class="qr-wrap"><canvas id="qrOffer"></canvas></div>
+          <textarea id="offerText" rows="3" readonly spellcheck="false"></textarea>
+          <p class="hint">2. Agora escaneie o *cartão de resposta* dele:</p>
+          <button id="scanAnswer" class="btn-win gold">📷 Escanear resposta</button>
+          <label class="hint alt">ou cole a resposta (Base64):</label>
+          <textarea id="answerPaste" rows="3" spellcheck="false" placeholder="cole aqui o SDP Answer Base64 e clique Conectar"></textarea>
+          <button id="applyAnswer" class="btn-win gold">✅ Conectar</button>
+        </div>
+
+        <div id="flowB" class="flow hidden">
+          <p class="hint">1. Escaneie o cartão de oferta de quem criou:</p>
+          <button id="scanOffer" class="btn-win gold">📷 Escanear oferta</button>
+          <label class="hint alt">ou cole a oferta (Base64):</label>
+          <textarea id="offerPaste" rows="3" spellcheck="false" placeholder="cole aqui o SDP Offer Base64"></textarea>
+          <button id="acceptOffer" class="btn-win">⬇️ Aceitar</button>
+          <div id="answerZone" class="hidden">
+            <p class="hint">2. Mostre este cartão de resposta ao criador:</p>
+            <div class="qr-wrap"><canvas id="qrAnswer"></canvas></div>
+            <textarea id="answerText" rows="3" readonly spellcheck="false"></textarea>
+          </div>
+        </div>
+      </div>
+      <div id="bleFlow" class="hidden">
+        <div class="role-pick">
+          <button id="blePeripheral" class="btn-win">📡 Anunciar (peripheral)</button>
+          <button id="bleCentral" class="btn-win">🔎 Procurar (central)</button>
+        </div>
+        <p id="bleState" class="hint">No Android, o modo BLE exige app híbrido (Capacitor) com o plugin bluetooth-le instalado. No navegador puro, use Wi-Fi local.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: SCANNER -->
+<div id="scanModal" class="modal hidden">
+  <div class="modal-box retro scan">
+    <div class="win-title"><span>📷 Escanear</span><button id="scanClose" class="win-x">✕</button></div>
+    <div class="modal-body">
+      <video id="scanVideo" playsinline muted></video>
+      <p class="hint">Aponte a câmera para o QR Code do contato.</p>
+      <p id="scanErr" class="danger"></p>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<audio id="sfxNudge" src="sounds/nudge.wav"></audio>
+<audio id="sfxMsg" src="sounds/message.wav"></audio>
+<audio id="sfxRing" src="sounds/ring.wav"></audio>
+
+<script src="vendor/qrcode.min.js"></script>
+<script src="vendor/jsQR.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
